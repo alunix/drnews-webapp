@@ -1,0 +1,3 @@
+rootProject.name = 'drnews'
+include 'article-extractor'
+findProject(':article-extractor')?.name = 'article-extractor'
