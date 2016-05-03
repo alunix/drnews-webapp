@@ -1,40 +1,32 @@
 #!/bin/sh
 #
-# An example hook script to check the commit log message.
-# Called by "git commit" with one argument, the name of the file
-# that has the commit message.  The hook should exit with non-zero
-# status after issuing an appropriate message if it wants to stop the
-# commit.  The hook is allowed to edit the commit message file.
 #
-# To enable this hook, rename this file to "commit-msg".
-
-# Uncomment the below to add a Signed-off-by line to the message.
-# Doing this in a hook is a bad idea in general, but the prepare-commit-msg
-# hook is more suited to it.
-#
-# SOB=$(git var GIT_AUTHOR_IDENT | sed -n 's/^\(.*>\).*$/Signed-off-by: \1/p')
-# grep -qs "^$SOB" "$1" || echo "$SOB" >> "$1"
-
-# This example catches duplicate Signed-off-by lines.
-
-test "" = "$(grep '^Signed-off-by: ' "$1" |
-	 sort | uniq -c | sed -e '/^[ 	]*1[ 	]/d')" || {
-	echo >&2 Duplicate Signed-off-by lines.
-	exit 1
-}
-
+PROJ_URL=https://api.github.com/repos/dtaveras/drnews-webapp/issues
 echo "Checking for correct Issue Reference Number"
 
 COMMIT_REF_NUM=$(sed -ne 's/.*\#\([0-9]*\).*/\1/p' $1)
 
+if [ -z "$COMMIT_REF_NUM" ];then
+    echo "Commit Failed: Could not parse Reference Number"
+    exit 1
+fi
+
 echo Parsed Commit Ref Num: $COMMIT_REF_NUM
 
-RESULT=$((curl -s -u "dtaveras:lucas1223" -i https://api.github.com/repos/dtaveras/angular2-experiment/issues)|grep number | sed -e "s/\(\"number\":\) \([0-9]*\).*/\2/"|sed -ne "s/$COMMIT_REF_NUM/EXIST/p")
+echo "Fetching tickets"
+TICKET=`curl -s $PROJ_URL | jq "[.[] | {id: .id, title: .title, issueNumber: .number, state: .state, type: .labels[0].name, createdTime: .created_at, updatedTime: .updated_at, ClosedAt: .closed_at}] | .[] | select(.issueNumber == $COMMIT_REF_NUM)"`
 
-if [ $RESULT ]; then
-   echo "Ticket exists proceeding to commit"
+if [ ! -z "$TICKET" ]; then
+    STATE=`echo "$TICKET" | jq '.state'`
+    if [ "$STATE" == '"open"' ]; then
+	echo "Found open ticket proceeding to commiting ..."
+	echo $TICKET | jq '.'
+    else
+	echo "Commit Failed: ticket #$COMMIT_REF_NUM is $STATE"
+	exit 1
+    fi
 else
-    echo "Ticket does not EXIST please create one or commit against a different ticket"
+    echo "Commit Failed: Ticket #$COMMIT_REF_NUM does not exist"
     exit 1
 fi
 
