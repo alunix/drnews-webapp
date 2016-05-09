@@ -1,27 +1,27 @@
 package com.dominicano.aldia.extractor;
 
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
+import java.util.Set;
 
-import org.apache.http.NameValuePair;
-import org.apache.http.client.utils.URIBuilder;
-import org.apache.http.message.BasicNameValuePair;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
+import com.dominicano.aldia.dao.Article;
+import com.dominicano.aldia.dao.ArticleDAO;
+import org.javalite.activejdbc.Base;
 
 public class Main {
 
     public static void main(String[] arg) throws Exception {
-        AbstractArticleExtractor articleExtractor = new ElCaribeExtractor();
-        articleExtractor.fetchArticles();
+        ArticleInfo articleInfo = new ArticleInfo("ElCaribe");
+        articleInfo.title = "El Carnival Feliz ano";
+        articleInfo.section = "Deportes";
+        articleInfo.content = "ljadflkjs";
+        articleInfo.articleUrl = "www.listin.dom";
+
+        //ArticleDAO.store(articleInfo);
+        //AbstractArticleExtractor extractor = new ElListinArticleExtractor();
+        AbstractArticleExtractor extractor = new ElCaribeExtractor();
+        extractor.extractArticles();
+
+
     }
 }

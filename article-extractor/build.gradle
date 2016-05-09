@@ -1,4 +1,15 @@
 apply plugin: 'java'
+apply plugin: 'org.javalite.activejdbc'
+
+buildscript {
+    repositories {
+        mavenCentral()
+        maven { url 'http://repo.javalite.io' }
+    }
+    dependencies {
+        classpath group: 'org.javalite', name: 'activejdbc-gradle-plugin', version: '1.4.12-SNAPSHOT'
+    }
+}
 
 repositories {
     mavenCentral()
@@ -6,7 +17,8 @@ repositories {
 
 dependencies {
     compile 'org.jsoup:jsoup:1.9.1'
-    compile 'org.apache.httpcomponents:httpclient:4.5.2'
+    compile 'org.javalite:activejdbc:1.4.11'
+    compile 'org.postgresql:postgresql:9.4.1208'
 
     testCompile 'junit:junit:4.11'
 }

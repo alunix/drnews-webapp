@@ -1,7 +1,6 @@
 package com.dominicano.aldia.extractor;
 
-import org.apache.http.NameValuePair;
-import org.apache.http.client.utils.URIBuilder;
+import com.dominicano.aldia.dao.ArticleDAO;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -11,19 +10,25 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.logging.Logger;
 
 public class ElCaribeExtractor extends AbstractArticleExtractor{
 
-    public final static String NEWS_OUTLET = "Elcaribe";
+    public final static String NEWS_OUTLET = "ElCaribe";
+
+    private final String baseUrl = "http://www.elcaribe.com.do/archivos?palabras=todas&antiguedad=24+horas&seccion=Panorama&multimedia=Art%C3%ADculo&pagina=1";
 
     //Available Sections Todas, Panorama, Deportes, Gente
     public final static String[] sections = {"Panorama", "Deportes", "Gente"};
 
-    Logger log = Logger.getLogger(this.getClass().getSimpleName());
+    private final Logger log = Logger.getLogger(ElCaribeExtractor.class.getSimpleName());
 
+    public static int CONN_TIMEOUT = 4000; //ms
+
+    //Tells us the available fetch ages
     enum Age {
         ONEDAY("24+horas"),
         THREEDAYS("3+días"),
@@ -39,8 +44,6 @@ public class ElCaribeExtractor extends AbstractArticleExtractor{
             return this.age;
         }
     }
-
-    private final String baseUrl = "http://www.elcaribe.com.do/archivos?palabras=todas&antiguedad=24+horas&seccion=Panorama&multimedia=Art%C3%ADculo&pagina=1";
 
     private String getPageUrl(String url, int pageNum){
         StringBuilder strBd = new StringBuilder(url);
@@ -71,9 +74,9 @@ public class ElCaribeExtractor extends AbstractArticleExtractor{
 
     //Schema used to generate the articles http://schema.org/Article
     private ArticleInfo getArticleInfo(String articleUrl) throws IOException {
-        Document rootArticleDoc = Jsoup.connect(articleUrl).get();
+        Document articleDoc = Jsoup.connect(articleUrl).timeout(CONN_TIMEOUT).get();
 
-        Element article = rootArticleDoc.select("article.contenidoArticulo").first();
+        Element article = articleDoc.select("article.contenidoArticulo").first();
         Element header = article.select("header").first();
         Element body = article.select("[itemprop='articleBody']").first();
         Element socialMediaBoxFigure = article.select(".multimediaCompartir figure").first();
@@ -101,15 +104,16 @@ public class ElCaribeExtractor extends AbstractArticleExtractor{
         artInfo.author = author;
         artInfo.content = content;
         artInfo.imgUrl = imgUrl;
+        artInfo.timeExtracted = Calendar.getInstance().getTime();
 
         log.info(artInfo.toString());
         return artInfo;
     }
 
-    private List<ArticleInfo> fetchPageOfArticles(String url, String section) throws IOException {
-        Document rootDoc = Jsoup.connect(url).get();
+    private List<ArticleInfo> extractArticlesInPage(String url, String section) throws IOException,NullPointerException {
+        Document rootDoc = Jsoup.connect(url).timeout(CONN_TIMEOUT).get();
 
-        List<ArticleInfo> parsedArticles = new ArrayList<>();
+        List<ArticleInfo> articleInfoList = new ArrayList<>();
 
         Element articleList = rootDoc.select("div.listado-articulos").first();
         Elements articles = articleList.select("article");
@@ -121,24 +125,24 @@ public class ElCaribeExtractor extends AbstractArticleExtractor{
             log.info("Parsing Article: "+titleElem.text());
             log.info("ArticleNumber: " + i);
 
-            String articleLink = titleElem.select("a").first().attr("href");
-            log.info("Link: "+articleLink);
+            String articleUrl = titleElem.select("a").first().attr("href");
+            log.info("ArticleUrl: "+articleUrl);
 
             try {
-                ArticleInfo artInfo = getArticleInfo(articleLink);
+                ArticleInfo artInfo = getArticleInfo(articleUrl);
                 artInfo.section = section;
 
-                parsedArticles.add(artInfo);
-            }catch (NullPointerException e){
+                articleInfoList.add(artInfo);
+            }catch (NullPointerException | IOException e){
+                log.info("Failed: Check article Schema or Url could be broken");
                 e.printStackTrace();
-                log.info("Failed to Parse Article check if Schema has changed moving on to next article");
             }
         }
 
-        return parsedArticles;
+        return articleInfoList;
     }
 
-    private void fetchSectionOfArticles(String section) throws IOException {
+    private List<ArticleInfo> extractArticlesInSection(String section) throws IOException,NullPointerException {
         int pageNum = 1;
         List<ArticleInfo> allArticles = new ArrayList<>();
         String url = getUrl(Age.ONEDAY, section);
@@ -147,9 +151,11 @@ public class ElCaribeExtractor extends AbstractArticleExtractor{
         log.info("PageNumber: " + pageNum);
         log.info("PageUrl: " + pageUrl);
         log.info("Section: " + section);
-        List<ArticleInfo> articleList = fetchPageOfArticles(pageUrl, section);
+
+        List<ArticleInfo> articleList = extractArticlesInPage(pageUrl, section);
+
         while(!articleList.isEmpty()){
-            log.info("Fetched: " + articleList.size() + " Articles");
+            log.info("Extracted: " + articleList.size() + " Articles");
             allArticles.addAll(articleList);
 
             pageNum++;
@@ -158,21 +164,29 @@ public class ElCaribeExtractor extends AbstractArticleExtractor{
             log.info("PageNumber: " + pageNum);
             log.info("PageUrl: " + pageUrl);
 
-            articleList = fetchPageOfArticles(pageUrl, section);
+            articleList = extractArticlesInPage(pageUrl, section);
         }
 
         int totalPages = pageNum-1;
         log.info("------------------------------------------------------------------------");
-        log.info("Summary: " + "Section: " + section + "Pages: " + totalPages + " Articles Fetched: " + allArticles.size());
+        log.info("Summary: " + "Section: " + section + "Pages: " + totalPages + " Articles Extracted: " + allArticles.size());
         log.info("------------------------------------------------------------------------\n");
 
-        //TODO: Store articles
+        return allArticles;
     }
 
     @Override
-    public void fetchArticles() throws IOException {
+    public void extractArticles() {
         for (String section: sections){
-            fetchSectionOfArticles(section);
+            try {
+                List<ArticleInfo> articleInfos = extractArticlesInSection(section);
+
+                store(articleInfos);
+            } catch (IOException | NullPointerException e) {
+                log.info("ERROR Section: " + section);
+                log.info("Check Page format or maybe could not connect to URL");
+                e.printStackTrace();
+            }
         }
    }
 }
