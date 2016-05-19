@@ -32,7 +32,7 @@ public class ArticleDAO {
         articles.stream().forEach(artl -> System.out.println(artl));
     }
 
-    public static Article newArticle(ArticleInfo articleInfo){
+    private static Article newArticle(ArticleInfo articleInfo){
         Article article = new Article();
 
         article.setNewsOutlet(articleInfo.newsOutlet);
@@ -52,7 +52,7 @@ public class ArticleDAO {
         return article;
     }
 
-    public static void store(ArticleInfo articleInfo) throws DBException{
+    private static void store(ArticleInfo articleInfo) throws DBException{
         Article article = newArticle(articleInfo);
         article.saveIt();
     }
