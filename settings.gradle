@@ -1,3 +1,6 @@
 rootProject.name = 'drnews'
 include 'article-extractor'
 findProject(':article-extractor')?.name = 'article-extractor'
+include 'article-webservices'
+include 'article-dbwebapp'
+
